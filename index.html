@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Spin Wheel</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Righteous&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Nunito', sans-serif;
+    padding: 32px 16px;
+  }
+
+  .app {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 28px; width: 100%; max-width: 480px;
+  }
+
+  .title {
+    font-family: 'Righteous', cursive;
+    font-size: 2.4rem; color: #fff;
+    text-shadow: 0 0 30px rgba(165,130,255,0.6), 0 2px 8px rgba(0,0,0,0.4);
+    letter-spacing: 2px;
+  }
+
+  .qty-counter {
+    font-family: 'Righteous', cursive;
+    font-size: 1rem; color: rgba(255,255,255,0.55);
+    letter-spacing: 1px;
+    margin-bottom: -10px;
+  }
+
+  .wheel-wrap {
+    position: relative; display: flex; align-items: center; justify-content: center;
+  }
+
+  .pointer {
+    position: absolute; top: -4px; left: 50%; transform: translateX(-50%);
+    font-size: 28px; color: #fff;
+    filter: drop-shadow(0 2px 8px rgba(165,130,255,0.8));
+    z-index: 10; user-select: none;
+  }
+
+  canvas { border-radius: 50%; display: block; }
+
+  .result-bubble {
+    background: rgba(255,255,255,0.12);
+    border: 2px solid rgba(165,130,255,0.5);
+    backdrop-filter: blur(12px);
+    border-radius: 16px; padding: 14px 28px;
+    color: #fff; font-size: 1.25rem; font-weight: 700;
+    text-align: center; min-width: 240px;
+    box-shadow: 0 0 30px rgba(165,130,255,0.25);
+    animation: popIn 0.4s cubic-bezier(.34,1.56,.64,1);
+    display: none;
+  }
+  .result-bubble.show { display: block; }
+
+  @keyframes popIn {
+    from { transform: scale(0.7); opacity: 0; }
+    to   { transform: scale(1);   opacity: 1; }
+  }
+
+  .spin-btn {
+    font-family: 'Righteous', cursive;
+    font-size: 1.3rem; letter-spacing: 1.5px;
+    padding: 14px 52px; border: none; border-radius: 50px;
+    background: linear-gradient(135deg, #6366f1 0%, #a855f7 60%, #ec4899 100%);
+    color: #fff; cursor: pointer;
+    box-shadow: 0 6px 32px rgba(168,85,247,0.5), 0 2px 8px rgba(0,0,0,0.3);
+    transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+    position: relative; overflow: hidden;
+  }
+  .spin-btn::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent);
+    border-radius: 50px;
+  }
+  .spin-btn:hover:not(:disabled) { transform: translateY(-2px) scale(1.04); box-shadow: 0 10px 40px rgba(168,85,247,0.65); }
+  .spin-btn:active:not(:disabled) { transform: scale(0.97); }
+  .spin-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  /* ── Main input list ── */
+  .inputs-section { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+  .input-row { display: flex; gap: 7px; align-items: center; }
+
+  .text-input {
+    flex: 1; padding: 11px 14px;
+    border: 2px solid rgba(165,130,255,0.35);
+    border-radius: 12px; background: rgba(255,255,255,0.08);
+    color: #fff; font-family: 'Nunito', sans-serif;
+    font-size: 1rem; outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .text-input::placeholder { color: rgba(255,255,255,0.35); }
+  .text-input:focus {
+    border-color: #a855f7; background: rgba(255,255,255,0.13);
+    box-shadow: 0 0 0 3px rgba(168,85,247,0.2);
+  }
+
+  .icon-btn {
+    width: 38px; height: 38px; flex-shrink: 0;
+    border: 2px solid rgba(165,130,255,0.4); border-radius: 11px;
+    background: rgba(255,255,255,0.08); color: #fff; font-size: 1rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  }
+  .icon-btn:hover { background: rgba(168,85,247,0.3); border-color: #a855f7; transform: scale(1.08); }
+  .icon-btn:active { transform: scale(0.93); }
+  .icon-btn.add { color: #a3e635; border-color: rgba(163,230,53,0.4); }
+  .icon-btn.add:hover { background: rgba(163,230,53,0.2); border-color: #a3e635; }
+  .icon-btn.remove { color: #f87171; border-color: rgba(248,113,113,0.35); }
+  .icon-btn.remove:hover { background: rgba(248,113,113,0.2); border-color: #f87171; }
+  .icon-btn.trash { color: #fb923c; border-color: rgba(251,146,60,0.35); font-size: 0.95rem; }
+  .icon-btn.trash:hover { background: rgba(251,146,60,0.2); border-color: #fb923c; }
+
+  .credit { margin-top: 8px; font-size: 0.82rem; color: rgba(255,255,255,0.4); letter-spacing: 0.5px; }
+  .credit-link {
+    color: rgba(168,130,255,0.85); cursor: pointer; font-weight: 700;
+    text-decoration: none; transition: color 0.15s;
+  }
+  .credit-link:hover { color: #c084fc; text-decoration: underline; }
+
+  /* ── Overlay base ── */
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp {
+    from { transform: translateY(30px) scale(0.95); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+  }
+
+  .ov {
+    display: none; position: fixed; inset: 0;
+    background: rgba(10,8,30,0.82); backdrop-filter: blur(10px);
+    align-items: center; justify-content: center; z-index: 100;
+  }
+  .ov.show { display: flex; animation: fadeIn 0.25s ease; }
+
+  /* ── YouTube overlay ── */
+  .overlay-card {
+    background: linear-gradient(145deg, #1e1b4b, #2d2060);
+    border: 1.5px solid rgba(165,130,255,0.35); border-radius: 24px;
+    padding: 36px 32px 28px; width: 90%; max-width: 360px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+    animation: slideUp 0.3s cubic-bezier(.34,1.56,.64,1);
+  }
+  .overlay-title {
+    font-family: 'Righteous', cursive; color: #fff;
+    font-size: 1.2rem; letter-spacing: 1px; text-align: center; opacity: 0.75;
+  }
+  .channels { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+  .channel-card {
+    display: flex; align-items: center; gap: 16px;
+    background: rgba(255,255,255,0.07); border: 1.5px solid rgba(255,255,255,0.1);
+    border-radius: 16px; padding: 14px 18px; cursor: pointer; text-decoration: none;
+    transition: background 0.18s, border-color 0.18s, transform 0.15s;
+  }
+  .channel-card:hover { background: rgba(255,0,0,0.15); border-color: rgba(255,80,80,0.5); transform: translateY(-2px); }
+  .yt-logo {
+    width: 44px; height: 44px; flex-shrink: 0; background: #ff0000; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 16px rgba(255,0,0,0.4);
+  }
+  .channel-info { display: flex; flex-direction: column; gap: 2px; }
+  .channel-name { color: #fff; font-weight: 800; font-size: 1rem; }
+  .channel-handle { color: rgba(255,255,255,0.4); font-size: 0.8rem; }
+  .overlay-close {
+    margin-top: 4px; background: none; border: 1.5px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.45); font-size: 0.85rem; font-family: 'Nunito', sans-serif;
+    padding: 8px 24px; border-radius: 50px; cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .overlay-close:hover { border-color: rgba(255,255,255,0.4); color: #fff; }
+
+  /* ── Fixed corner buttons ── */
+  .secret-btn {
+    position: fixed; bottom: 14px; left: 14px;
+    font-size: 1rem; background: none; border: none;
+    cursor: pointer; opacity: 0; transition: none;
+    z-index: 50; padding: 4px; line-height: 1;
+  }
+  .secret-btn:hover { opacity: 0.5; }
+
+  .bulk-btn {
+    position: fixed; bottom: 16px; right: 16px;
+    width: 40px; height: 40px; border-radius: 13px;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    border: none; color: #fff; font-size: 1.1rem;
+    cursor: pointer; z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 18px rgba(99,102,241,0.5);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .bulk-btn:hover { transform: translateY(-2px) scale(1.08); box-shadow: 0 8px 26px rgba(99,102,241,0.65); }
+  .bulk-btn:active { transform: scale(0.93); }
+
+  .bulk-amount-input.invalid {
+    border-color: #f87171 !important;
+    background: rgba(248,113,113,0.12) !important;
+    animation: shakeQty 0.3s ease;
+  }
+  @keyframes shakeQty {
+    0%,100% { transform: translateX(0); }
+    20%,60% { transform: translateX(-4px); }
+    40%,80% { transform: translateX(4px); }
+  }
+
+  /* ── Passkey overlay ── */
+  #passkeyOverlay { z-index: 120; }
+  .passkey-card {
+    background: linear-gradient(145deg, #1a1a3e, #12102a);
+    border: 1.5px solid rgba(165,130,255,0.3); border-radius: 22px;
+    padding: 36px 32px 28px; width: 90%; max-width: 310px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    animation: slideUp 0.3s cubic-bezier(.34,1.56,.64,1);
+  }
+  .passkey-title {
+    font-family: 'Righteous', cursive; color: #fff;
+    font-size: 1.1rem; letter-spacing: 1px; opacity: 0.8;
+  }
+  .passkey-input {
+    width: 100%; padding: 12px 16px;
+    border: 2px solid rgba(165,130,255,0.3); border-radius: 12px;
+    background: rgba(255,255,255,0.07); color: #fff;
+    font-family: 'Nunito', sans-serif; font-size: 1.1rem;
+    outline: none; text-align: center; letter-spacing: 4px;
+    transition: border-color 0.2s;
+  }
+  .passkey-input::placeholder { color: rgba(255,255,255,0.22); letter-spacing: 1px; font-size: 0.9rem; }
+  .passkey-input:focus { border-color: #a855f7; box-shadow: 0 0 0 3px rgba(168,85,247,0.2); }
+  .passkey-input.shake { animation: shake 0.35s ease; border-color: #f87171; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20%,60% { transform: translateX(-7px); }
+    40%,80% { transform: translateX(7px); }
+  }
+  .passkey-submit {
+    width: 100%; padding: 12px; border: none; border-radius: 12px;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    color: #fff; font-family: 'Righteous', cursive; font-size: 1rem;
+    cursor: pointer; transition: opacity 0.15s, transform 0.15s;
+  }
+  .passkey-submit:hover { opacity: 0.88; transform: scale(1.02); }
+  .passkey-cancel {
+    background: none; border: none; color: rgba(255,255,255,0.3);
+    font-family: 'Nunito', sans-serif; font-size: 0.82rem; cursor: pointer;
+    transition: color 0.15s;
+  }
+  .passkey-cancel:hover { color: rgba(255,255,255,0.6); }
+
+  /* ── Cheat Box overlay ── */
+  #cheatOverlay { z-index: 120; }
+  .cheat-card {
+    background: linear-gradient(145deg, #1a0a2e, #0d0720);
+    border: 1.5px solid rgba(220,80,255,0.4); border-radius: 24px;
+    padding: 32px 28px 24px; width: 90%; max-width: 360px;
+    box-shadow: 0 0 60px rgba(180,50,255,0.2), 0 24px 80px rgba(0,0,0,0.7);
+    display: flex; flex-direction: column; align-items: center; gap: 18px;
+    animation: slideUp 0.3s cubic-bezier(.34,1.56,.64,1);
+  }
+  .cheat-title {
+    font-family: 'Righteous', cursive; color: #df7fff;
+    font-size: 1.3rem; letter-spacing: 1px; text-align: center;
+    text-shadow: 0 0 20px rgba(200,80,255,0.5);
+  }
+  .cheat-inputs { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+  .cheat-row { display: flex; gap: 8px; align-items: center; }
+  .cheat-input {
+    flex: 1; padding: 10px 14px;
+    border: 1.5px solid rgba(200,80,255,0.3); border-radius: 12px;
+    background: rgba(255,255,255,0.06); color: #fff;
+    font-family: 'Nunito', sans-serif; font-size: 0.95rem; outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .cheat-input::placeholder { color: rgba(255,255,255,0.28); }
+  .cheat-input:focus {
+    border-color: #c050ff; background: rgba(200,80,255,0.1);
+    box-shadow: 0 0 0 3px rgba(180,50,255,0.15);
+  }
+  .cheat-icon-btn {
+    width: 38px; height: 38px; flex-shrink: 0;
+    border: 1.5px solid rgba(200,80,255,0.3); border-radius: 11px;
+    background: rgba(255,255,255,0.06); color: #fff; font-size: 1rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .cheat-icon-btn:hover { background: rgba(180,50,255,0.25); transform: scale(1.08); }
+  .cheat-icon-btn.add  { color: #a3e635; }
+  .cheat-icon-btn.remove { color: #f87171; }
+  .cheat-close {
+    background: none; border: 1.5px solid rgba(200,80,255,0.25);
+    color: rgba(255,255,255,0.4); font-size: 0.85rem;
+    font-family: 'Nunito', sans-serif; padding: 8px 28px; border-radius: 50px; cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .cheat-close:hover { border-color: rgba(200,80,255,0.55); color: #df7fff; }
+
+  /* ── Bulk Add overlay ── */
+  #bulkOverlay { z-index: 120; }
+  .bulk-card {
+    background: linear-gradient(145deg, #1e1b4b, #2d2060);
+    border: 1.5px solid rgba(165,130,255,0.35); border-radius: 24px;
+    padding: 28px 24px 24px;
+    width: 92%; max-width: 440px;
+    max-height: 88vh; overflow-y: auto;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    display: flex; flex-direction: column; align-items: stretch; gap: 16px;
+    animation: slideUp 0.3s cubic-bezier(.34,1.56,.64,1);
+  }
+  .bulk-card::-webkit-scrollbar { width: 4px; }
+  .bulk-card::-webkit-scrollbar-track { background: transparent; }
+  .bulk-card::-webkit-scrollbar-thumb { background: rgba(168,85,247,0.4); border-radius: 2px; }
+
+  .bulk-title {
+    font-family: 'Righteous', cursive;
+    color: #fff; font-size: 1.15rem; letter-spacing: 1px; text-align: center;
+    flex-shrink: 0;
+  }
+
+  .bulk-rows { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+
+  /* Each row: [text flex-1] [amount 80px] [trash 36px] */
+  .bulk-row {
+    display: grid;
+    grid-template-columns: 1fr 80px 36px;
+    gap: 7px; align-items: center;
+  }
+
+  .bulk-text-input {
+    padding: 10px 12px;
+    border: 2px solid rgba(165,130,255,0.3); border-radius: 11px;
+    background: rgba(255,255,255,0.08);
+    color: #fff; font-family: 'Nunito', sans-serif;
+    font-size: 0.92rem; outline: none; width: 100%;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .bulk-text-input::placeholder { color: rgba(255,255,255,0.3); }
+  .bulk-text-input:focus {
+    border-color: #a855f7; background: rgba(255,255,255,0.13);
+    box-shadow: 0 0 0 3px rgba(168,85,247,0.18);
+  }
+
+  .bulk-amount-input {
+    padding: 10px 6px;
+    border: 2px solid rgba(165,130,255,0.3); border-radius: 11px;
+    background: rgba(255,255,255,0.08);
+    color: #fff; font-family: 'Nunito', sans-serif;
+    font-size: 0.92rem; outline: none; text-align: center; width: 100%;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .bulk-amount-input::placeholder { color: rgba(255,255,255,0.3); font-size: 0.75rem; }
+  .bulk-amount-input:focus {
+    border-color: #a855f7; background: rgba(255,255,255,0.13);
+    box-shadow: 0 0 0 3px rgba(168,85,247,0.18);
+  }
+  /* Hide number spinners */
+  .bulk-amount-input::-webkit-inner-spin-button,
+  .bulk-amount-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .bulk-amount-input[type=number] { -moz-appearance: textfield; }
+
+  .bulk-trash-btn {
+    width: 36px; height: 36px; flex-shrink: 0;
+    border: 2px solid rgba(251,146,60,0.35); border-radius: 10px;
+    background: rgba(255,255,255,0.06); color: #fb923c;
+    font-size: 0.9rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .bulk-trash-btn:hover { background: rgba(251,146,60,0.2); border-color: #fb923c; transform: scale(1.08); }
+  .bulk-trash-btn:active { transform: scale(0.93); }
+
+  /* Bottom action rows */
+  .bulk-add-remove-row {
+    display: flex; gap: 10px; align-items: center;
+  }
+
+  .bulk-icon-btn {
+    width: 38px; height: 38px; flex-shrink: 0;
+    border: 2px solid rgba(165,130,255,0.35); border-radius: 11px;
+    background: rgba(255,255,255,0.07); color: #fff; font-size: 1rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .bulk-icon-btn:hover { background: rgba(168,85,247,0.28); transform: scale(1.08); }
+  .bulk-icon-btn:active { transform: scale(0.93); }
+  .bulk-icon-btn.add  { color: #a3e635; border-color: rgba(163,230,53,0.35); }
+  .bulk-icon-btn.add:hover  { background: rgba(163,230,53,0.18); border-color: #a3e635; }
+  .bulk-icon-btn.remove { color: #f87171; border-color: rgba(248,113,113,0.35); }
+  .bulk-icon-btn.remove:hover { background: rgba(248,113,113,0.18); border-color: #f87171; }
+
+  .bulk-bottom-row {
+    display: flex; gap: 8px; align-items: center;
+  }
+
+  .bulk-done-btn {
+    flex: 1; padding: 12px 10px;
+    border: none; border-radius: 13px;
+    background: linear-gradient(135deg, #6366f1, #a855f7 60%, #ec4899);
+    color: #fff; font-family: 'Righteous', cursive;
+    font-size: 0.95rem; letter-spacing: 0.5px; cursor: pointer;
+    box-shadow: 0 4px 18px rgba(168,85,247,0.4);
+    transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+    position: relative; overflow: hidden;
+  }
+  .bulk-done-btn::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+    border-radius: 13px;
+  }
+  .bulk-done-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(168,85,247,0.6); }
+  .bulk-done-btn:active { transform: scale(0.97); opacity: 0.9; }
+
+  .bulk-clear-all-btn {
+    padding: 12px 14px;
+    border: 1.5px solid rgba(248,113,113,0.35); border-radius: 13px;
+    background: rgba(248,113,113,0.08);
+    color: #f87171; font-family: 'Nunito', sans-serif; font-weight: 700;
+    font-size: 0.88rem; cursor: pointer; white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  }
+  .bulk-clear-all-btn:hover { background: rgba(248,113,113,0.18); border-color: #f87171; transform: scale(1.03); }
+  .bulk-clear-all-btn:active { transform: scale(0.96); }
+
+  .bulk-cancel-btn {
+    padding: 12px 14px;
+    background: none; border: 1.5px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.4); font-size: 0.88rem;
+    font-family: 'Nunito', sans-serif; border-radius: 13px; cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .bulk-cancel-btn:hover { border-color: rgba(255,255,255,0.35); color: #fff; }
+
+  /* ── Limit bubble ── */
+  .limit-bubble {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.85);
+    background: rgba(30, 10, 20, 0.97);
+    border: 2px solid #f87171;
+    border-radius: 16px; padding: 14px 24px;
+    color: #f87171; font-weight: 800; font-size: 1rem;
+    text-align: center; z-index: 300;
+    box-shadow: 0 0 40px rgba(248,113,113,0.35), 0 8px 32px rgba(0,0,0,0.6);
+    pointer-events: none;
+    opacity: 0; transition: opacity 0.15s, transform 0.15s;
+  }
+  .limit-bubble.show {
+    opacity: 1; transform: translate(-50%, -50%) scale(1);
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="title">🎡 Spin &amp; Win</div>
+  <div class="qty-counter" id="qtyCounter">Qty: 0</div>
+  <div class="wheel-wrap">
+    <div class="pointer">▼</div>
+    <canvas id="wheel" width="320" height="320"></canvas>
+  </div>
+  <div class="result-bubble" id="result"></div>
+  <button class="spin-btn" id="spinBtn" onclick="spin()">Spin</button>
+  <div class="inputs-section" id="inputsSection"></div>
+  <p class="credit">Made by <span class="credit-link" onclick="document.getElementById('overlay').classList.add('show')">Shadzop</span>.</p>
+</div>
+
+<!-- Secret 🤫 button — fixed, won't scroll -->
+<button class="secret-btn" onclick="openPasskey()">🤫</button>
+
+<!-- ᯓ Bulk button — fixed, won't scroll -->
+<button class="bulk-btn" onclick="openBulk()">ᯓ</button>
+
+<!-- YouTube Overlay -->
+<div class="ov" id="overlay" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="overlay-card">
+    <div class="overlay-title">🎬 YouTube Channels</div>
+    <div class="channels">
+      <a class="channel-card" href="https://youtube.com/@shadzop" target="_blank" rel="noopener">
+        <div class="yt-logo">
+          <svg viewBox="0 0 24 24" fill="white"><path d="M23.498 6.186a2.998 2.998 0 0 0-2.11-2.122C19.505 3.5 12 3.5 12 3.5s-7.505 0-9.388.564A2.998 2.998 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a2.998 2.998 0 0 0 2.11 2.122C4.495 20.5 12 20.5 12 20.5s7.505 0 9.388-.564a2.998 2.998 0 0 0 2.11-2.122C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+        </div>
+        <div class="channel-info">
+          <span class="channel-name">Shadzop</span>
+          <span class="channel-handle">@shadzop</span>
+        </div>
+      </a>
+      <a class="channel-card" href="https://youtube.com/@shadzop2" target="_blank" rel="noopener">
+        <div class="yt-logo">
+          <svg viewBox="0 0 24 24" fill="white"><path d="M23.498 6.186a2.998 2.998 0 0 0-2.11-2.122C19.505 3.5 12 3.5 12 3.5s-7.505 0-9.388.564A2.998 2.998 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a2.998 2.998 0 0 0 2.11 2.122C4.495 20.5 12 20.5 12 20.5s7.505 0 9.388-.564a2.998 2.998 0 0 0 2.11-2.122C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+        </div>
+        <div class="channel-info">
+          <span class="channel-name">Shadzop2</span>
+          <span class="channel-handle">@shadzop2</span>
+        </div>
+      </a>
+    </div>
+    <button class="overlay-close" onclick="document.getElementById('overlay').classList.remove('show')">Close</button>
+  </div>
+</div>
+
+<!-- Passkey Overlay -->
+<div class="ov" id="passkeyOverlay">
+  <div class="passkey-card">
+    <div class="passkey-title">Enter Passkey</div>
+    <input class="passkey-input" id="passkeyInput" type="password" placeholder="passkey"
+      maxlength="30" onkeydown="if(event.key==='Enter')checkPasskey()"/>
+    <button class="passkey-submit" onclick="checkPasskey()">Unlock</button>
+    <button class="passkey-cancel" onclick="closePasskey()">Cancel</button>
+  </div>
+</div>
+
+<!-- Cheat Box Overlay -->
+<div class="ov" id="cheatOverlay">
+  <div class="cheat-card">
+    <div class="cheat-title">Cheat Box 🤫</div>
+    <div class="cheat-inputs" id="cheatInputs"></div>
+    <button class="cheat-close" onclick="document.getElementById('cheatOverlay').classList.remove('show')">Done</button>
+  </div>
+</div>
+
+<!-- Bulk Add Overlay -->
+<div class="ov" id="bulkOverlay" onclick="if(event.target===this)closeBulk()">
+  <div class="bulk-card">
+    <div class="bulk-title">Add Number of Text</div>
+    <div class="bulk-rows" id="bulkRows"></div>
+    <div class="bulk-add-remove-row">
+      <button class="bulk-icon-btn add" id="bulkAddRowBtn" title="Add another text type">➕</button>
+      <button class="bulk-icon-btn remove" id="bulkRemoveRowBtn" title="Remove last text type">➖</button>
+    </div>
+    <div class="bulk-bottom-row">
+      <button class="bulk-done-btn" onclick="applyBulk()">Done</button>
+      <button class="bulk-clear-all-btn" onclick="clearAllWheel()">All 🗑️</button>
+      <button class="bulk-cancel-btn" onclick="bulkEntries=[{text:'',amount:''}];closeBulk()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const COLORS = [
+    "#FF6B6B","#FF8E53","#FFC233","#A8E063","#43CF8A",
+    "#38BDF8","#818CF8","#C084FC","#F472B6","#FB923C"
+  ];
+
+  let inputs = ["Option 1","Option 2","Option 3","Option 4"];
+  let cheatWords = [""];
+  let bulkEntries = [{ text: '', amount: '' }]; // persists across open/close
+  let currentRotation = 0;
+  let isSpinning = false;
+
+  // ── Audio Engine ──
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  let audioCtx = null;
+
+  function getAudioCtx() {
+    if (!audioCtx) audioCtx = new AudioCtx();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function warmUpAudio() {
+    const ctx = getAudioCtx();
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(ctx.destination); src.start(0);
+    document.removeEventListener('pointerdown', warmUpAudio);
+  }
+  document.addEventListener('pointerdown', warmUpAudio);
+
+  function playTick(speed) {
+    try {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(Math.min(300 + speed * 1800, 2200), ctx.currentTime);
+      osc.type = 'square';
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.045);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.045);
+    } catch(e) {}
+  }
+
+  function playAdd() {
+    try {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.13, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.18);
+    } catch(e) {}
+  }
+
+  function playRemove() {
+    try {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine';
+      osc.frequency.setValueAtTime(500, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(280, ctx.currentTime + 0.14);
+      gain.gain.setValueAtTime(0.13, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.18);
+    } catch(e) {}
+  }
+
+  function playTrash() {
+    try {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(380, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(180, ctx.currentTime + 0.16);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.2);
+    } catch(e) {}
+  }
+
+  function showLimitBubble() {
+    playDeny();
+    const b = document.getElementById('limitBubble');
+    b.classList.remove('show');
+    void b.offsetWidth;
+    b.classList.add('show');
+    clearTimeout(b._t);
+    b._t = setTimeout(() => b.classList.remove('show'), 2200);
+  }
+
+  function updateQtyCounter() {
+    const total = inputs.filter(s => s.trim() !== '').length;
+    document.getElementById('qtyCounter').textContent = 'Qty: ' + total;
+  }
+
+  function playDeny() {
+    try {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination); osc.type = 'square';
+      osc.frequency.setValueAtTime(160, ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.12);
+    } catch(e) {}
+  }
+
+  function playClearAll() {
+    try {
+      const ctx = getAudioCtx();
+      [440, 330, 220].forEach((freq, i) => {
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sawtooth';
+        const t = ctx.currentTime + i * 0.08;
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.1, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+        osc.start(t); osc.stop(t + 0.18);
+      });
+    } catch(e) {}
+  }
+
+  function playPasskeyCorrect() {
+    try {
+      const ctx = getAudioCtx();
+      [660, 880].forEach((freq, i) => {
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine';
+        const t = ctx.currentTime + i * 0.1;
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.15, t + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+        osc.start(t); osc.stop(t + 0.2);
+      });
+    } catch(e) {}
+  }
+
+  function playPasskeyWrong() {
+    try {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(220, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(110, ctx.currentTime + 0.22);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.25);
+    } catch(e) {}
+  }
+
+  function playBulkApply() {
+    try {
+      const ctx = getAudioCtx();
+      [440, 560, 700].forEach((freq, i) => {
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine';
+        const t = ctx.currentTime + i * 0.07;
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.13, t + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+        osc.start(t); osc.stop(t + 0.18);
+      });
+    } catch(e) {}
+  }
+
+  function playWin() {
+    try {
+      const ctx = getAudioCtx();
+      [523, 659, 784, 1047].forEach((freq, i) => {
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine';
+        const t = ctx.currentTime + i * 0.13;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.18, t + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+        osc.frequency.setValueAtTime(freq, t);
+        osc.start(t); osc.stop(t + 0.32);
+      });
+    } catch(e) {}
+  }
+
+  // ── Passkey ──
+  function openPasskey() {
+    getAudioCtx();
+    const inp = document.getElementById("passkeyInput");
+    inp.value = ""; inp.classList.remove("shake");
+    document.getElementById("passkeyOverlay").classList.add("show");
+    setTimeout(() => inp.focus(), 120);
+  }
+
+  function closePasskey() {
+    document.getElementById("passkeyOverlay").classList.remove("show");
+  }
+
+  function checkPasskey() {
+    const inp = document.getElementById("passkeyInput");
+    if (inp.value.trim().toLowerCase() === "shad") {
+      playPasskeyCorrect();
+      closePasskey();
+      renderCheatInputs();
+      getAudioCtx();
+      document.getElementById("cheatOverlay").classList.add("show");
+    } else {
+      playPasskeyWrong();
+      inp.classList.remove("shake");
+      void inp.offsetWidth;
+      inp.classList.add("shake");
+      inp.value = "";
+      setTimeout(() => inp.classList.remove("shake"), 400);
+    }
+  }
+
+  // ── Cheat Box ──
+  function renderCheatInputs() {
+    const section = document.getElementById("cheatInputs");
+    section.innerHTML = "";
+    cheatWords.forEach((val, i) => {
+      const row = document.createElement("div");
+      row.className = "cheat-row";
+      const input = document.createElement("input");
+      input.className = "cheat-input"; input.type = "text";
+      input.placeholder = "Enter cheat word…"; input.value = val;
+      input.addEventListener("input", e => { cheatWords[i] = e.target.value; });
+      row.appendChild(input);
+      if (i === cheatWords.length - 1) {
+        const addBtn = document.createElement("button");
+        addBtn.className = "cheat-icon-btn add"; addBtn.textContent = "➕";
+        addBtn.onclick = () => { playAdd(); cheatWords.push(""); renderCheatInputs(); };
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "cheat-icon-btn remove"; removeBtn.textContent = "➖";
+        removeBtn.disabled = cheatWords.length <= 1;
+        removeBtn.onclick = () => {
+          if (cheatWords.length > 1) { playRemove(); cheatWords.pop(); renderCheatInputs(); }
+        };
+        row.appendChild(addBtn); row.appendChild(removeBtn);
+      }
+      section.appendChild(row);
+    });
+  }
+
+  function getCheatIndex(options) {
+    const active = cheatWords.map(w => w.trim().toLowerCase()).filter(Boolean);
+    if (!active.length) return -1;
+    const matches = options.map((o, i) => ({ o, i }))
+      .filter(({ o }) => active.includes(o.trim().toLowerCase()));
+    if (!matches.length) return -1;
+    return matches[Math.floor(Math.random() * matches.length)].i;
+  }
+
+  // ── Main wheel inputs ──
+  function getOptions() {
+    return inputs.filter(s => s.trim() !== "");
+  }
+
+  function renderInputs() {
+    const section = document.getElementById("inputsSection");
+    section.innerHTML = "";
+    inputs.forEach((val, i) => {
+      const row = document.createElement("div");
+      row.className = "input-row";
+
+      const input = document.createElement("input");
+      input.className = "text-input"; input.type = "text";
+      input.placeholder = "Enter the text."; input.value = val;
+      input.addEventListener("input", e => { inputs[i] = e.target.value; drawWheel(currentRotation); updateQtyCounter(); });
+      input.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (inputs.filter(s=>s.trim()!=="").length >= 500) { showLimitBubble(); return; }
+          playAdd();
+          inputs.push("");
+          renderInputs();
+          drawWheel(currentRotation);
+          updateQtyCounter();
+          // Focus the new last input
+          const allInputs = document.querySelectorAll("#inputsSection .text-input");
+          if (allInputs.length) allInputs[allInputs.length - 1].focus();
+        }
+      });
+      row.appendChild(input);
+
+      // Trash button on every row except the last
+      if (i < inputs.length - 1) {
+        const trashBtn = document.createElement("button");
+        trashBtn.className = "icon-btn trash"; trashBtn.title = "Delete this option";
+        trashBtn.textContent = "🗑️";
+        trashBtn.onclick = () => {
+          playTrash(); inputs.splice(i, 1); renderInputs(); drawWheel(currentRotation); updateQtyCounter();
+        };
+        row.appendChild(trashBtn);
+      }
+
+      // ➕ / ➖ only on last row
+      if (i === inputs.length - 1) {
+        const addBtn = document.createElement("button");
+        addBtn.className = "icon-btn add"; addBtn.title = "Add option"; addBtn.textContent = "➕";
+        addBtn.onclick = () => { if (inputs.filter(s=>s.trim()!=="").length >= 500) { showLimitBubble(); return; } playAdd(); inputs.push(""); renderInputs(); drawWheel(currentRotation); updateQtyCounter(); };
+
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "icon-btn remove"; removeBtn.title = "Remove last option"; removeBtn.textContent = "➖";
+        removeBtn.disabled = inputs.length <= 1;
+        removeBtn.onclick = () => {
+          if (inputs.length > 1) { playRemove(); inputs.pop(); renderInputs(); drawWheel(currentRotation); updateQtyCounter(); }
+        };
+        row.appendChild(addBtn); row.appendChild(removeBtn);
+      }
+      section.appendChild(row);
+    });
+  }
+
+  // ── Bulk Add ──
+  function openBulk() {
+    getAudioCtx();
+    renderBulkRows();
+    document.getElementById('bulkOverlay').classList.add('show');
+  }
+
+  function closeBulk() {
+    document.getElementById('bulkOverlay').classList.remove('show');
+  }
+
+  function renderBulkRows() {
+    const container = document.getElementById('bulkRows');
+    container.innerHTML = '';
+    bulkEntries.forEach((entry, i) => {
+      const row = document.createElement('div');
+      row.className = 'bulk-row';
+
+      const textInp = document.createElement('input');
+      textInp.className = 'bulk-text-input'; textInp.type = 'text';
+      textInp.placeholder = 'Enter the text.'; textInp.value = entry.text;
+      textInp.addEventListener('input', e => { bulkEntries[i].text = e.target.value; });
+
+      const amountInp = document.createElement('input');
+      amountInp.className = 'bulk-amount-input'; amountInp.type = 'number';
+      amountInp.min = '1'; amountInp.max = '500';
+      amountInp.placeholder = 'Qty'; amountInp.value = entry.amount;
+      amountInp.addEventListener('keydown', e => {
+        const neutral = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab'];
+        // Enter = Done
+        if (e.key === 'Enter') { e.preventDefault(); applyBulk(); return; }
+        // Neutral keys pass silently
+        if (neutral.includes(e.key)) return;
+        // Digits pass
+        if (/^[0-9]$/.test(e.key)) return;
+        // Everything else: block + deny
+        e.preventDefault();
+        playDeny();
+        amountInp.classList.remove('invalid');
+        void amountInp.offsetWidth;
+        amountInp.classList.add('invalid');
+        setTimeout(() => amountInp.classList.remove('invalid'), 500);
+      });
+      amountInp.addEventListener('input', e => {
+        // Strip non-digits first (handles paste)
+        const cleaned = e.target.value.replace(/[^0-9]/g, '');
+        if (cleaned !== e.target.value) {
+          playDeny();
+          amountInp.classList.remove('invalid');
+          void amountInp.offsetWidth;
+          amountInp.classList.add('invalid');
+          setTimeout(() => amountInp.classList.remove('invalid'), 500);
+          e.target.value = cleaned;
+        }
+        bulkEntries[i].amount = cleaned;
+
+        // Check if total of all rows + current inputs would exceed 5000
+        const MAX_TOTAL = 500;
+        const alreadyOnWheel = inputs.filter(s=>s.trim()!=="").length;
+        // Sum all OTHER rows
+        const otherSum = bulkEntries.reduce((sum, entry, idx) => {
+          if (idx === i) return sum;
+          return sum + (Math.min(parseInt(entry.amount) || 0, 500));
+        }, 0);
+        const remaining = Math.max(0, MAX_TOTAL - alreadyOnWheel - otherSum);
+        const thisVal = parseInt(cleaned) || 0;
+        if (thisVal > remaining) {
+          showLimitBubble();
+          e.target.value = String(remaining);
+          bulkEntries[i].amount = String(remaining);
+          amountInp.classList.remove('invalid');
+          void amountInp.offsetWidth;
+          amountInp.classList.add('invalid');
+          setTimeout(() => amountInp.classList.remove('invalid'), 600);
+        }
+      });
+
+      const trashBtn = document.createElement('button');
+      trashBtn.className = 'bulk-trash-btn'; trashBtn.title = 'Remove this row';
+      trashBtn.textContent = '🗑️';
+      trashBtn.onclick = () => {
+        playTrash();
+        bulkEntries.splice(i, 1);
+        if (bulkEntries.length === 0) bulkEntries.push({ text: '', amount: '' });
+        renderBulkRows();
+      };
+
+      row.appendChild(textInp); row.appendChild(amountInp); row.appendChild(trashBtn);
+      container.appendChild(row);
+    });
+
+    // Update add/remove row button states
+    document.getElementById('bulkRemoveRowBtn').disabled = bulkEntries.length <= 1;
+  }
+
+  // Wire up ➕ ➖ row buttons
+  document.getElementById('bulkAddRowBtn').onclick = () => {
+    playAdd(); bulkEntries.push({ text: '', amount: '' }); renderBulkRows();
+  };
+  document.getElementById('bulkRemoveRowBtn').onclick = () => {
+    if (bulkEntries.length > 1) { playRemove(); bulkEntries.pop(); renderBulkRows(); }
+  };
+
+  function applyBulk() {
+    let added = 0;
+    const MAX_TOTAL = 500;
+    bulkEntries.forEach(entry => {
+      const text = entry.text.trim();
+      const amount = Math.min(parseInt(entry.amount) || 0, 500);
+      if (text && amount > 0) {
+        const space = Math.max(0, MAX_TOTAL - inputs.filter(s=>s.trim()!=="").length);
+        const toAdd = Math.min(amount, space);
+        for (let k = 0; k < toAdd; k++) inputs.push(text);
+        added += toAdd;
+      }
+    });
+    if (added > 0) {
+      playBulkApply();
+      renderInputs(); drawWheel(currentRotation); updateQtyCounter();
+    }
+    // Always close and reset entries so reopening starts fresh
+    bulkEntries = [{ text: '', amount: '' }];
+    closeBulk();
+  }
+
+  function clearAllWheel() {
+    playClearAll();
+    inputs = [""];
+    bulkEntries = [{ text: '', amount: '' }];
+    renderInputs(); drawWheel(currentRotation); updateQtyCounter(); closeBulk();
+  }
+
+  // ── Draw ──
+  function drawWheel(rot) {
+    const canvas = document.getElementById("wheel");
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+    const cx = W / 2, cy = H / 2;
+    const r = Math.min(cx, cy) - 8;
+    const options = getOptions();
+    const n = options.length;
+    ctx.clearRect(0, 0, W, H);
+    if (n === 0) return;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.35)"; ctx.shadowBlur = 28;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff"; ctx.fill(); ctx.restore();
+
+    const slice = (2 * Math.PI) / n;
+    for (let i = 0; i < n; i++) {
+      const start = rot + i * slice, end = start + slice;
+      ctx.beginPath(); ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, start, end); ctx.closePath();
+      ctx.fillStyle = COLORS[i % COLORS.length]; ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 2; ctx.stroke();
+
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(start + slice / 2);
+      ctx.textAlign = "right"; ctx.fillStyle = "#fff";
+      ctx.shadowColor = "rgba(0,0,0,0.3)"; ctx.shadowBlur = 3;
+      const fontSize = Math.max(10, Math.min(18, r / n * 1.1));
+      ctx.font = `bold ${fontSize}px 'Nunito', sans-serif`;
+      const label = options[i].length > 14 ? options[i].slice(0, 13) + "…" : options[i];
+      ctx.fillText(label, r - 14, fontSize / 3); ctx.restore();
+    }
+
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 28);
+    grad.addColorStop(0, "#fff"); grad.addColorStop(1, "#e0e7ff");
+    ctx.beginPath(); ctx.arc(cx, cy, 26, 0, Math.PI * 2);
+    ctx.fillStyle = grad; ctx.shadowColor = "rgba(99,102,241,0.3)"; ctx.shadowBlur = 10;
+    ctx.fill(); ctx.strokeStyle = "#6366f1"; ctx.lineWidth = 3; ctx.stroke();
+
+    ctx.fillStyle = "#6366f1"; ctx.font = "bold 18px sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowBlur = 0;
+    ctx.fillText("✦", cx, cy);
+  }
+
+  // ── Spin ──
+  function spin() {
+    const options = getOptions();
+    if (isSpinning || options.length < 2) return;
+    isSpinning = true;
+
+    const resultEl = document.getElementById("result");
+    resultEl.classList.remove("show");
+    const btn = document.getElementById("spinBtn");
+    btn.disabled = true; btn.textContent = "Spinning…";
+
+    const n = options.length;
+    const slice = (2 * Math.PI) / n;
+    const cheatIdx = getCheatIndex(options);
+    const winIndex = cheatIdx !== -1 ? cheatIdx : Math.floor(Math.random() * n);
+
+    const sliceCenter = (winIndex + 0.5) * slice;
+    const offsetInSlice = (Math.random() - 0.5) * slice * 0.6;
+    const finalRot = ((3 * Math.PI / 2 - sliceCenter - offsetInSlice) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+
+    const startRot = ((currentRotation % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    let diff = finalRot - startRot;
+    if (diff < 0) diff += 2 * Math.PI;
+    const totalAngle = (6 + Math.floor(Math.random() * 5)) * 2 * Math.PI + diff;
+    const duration = 4000;
+    const startTime = performance.now();
+    let lastTickAngle = startRot;
+
+    function animate(now) {
+      const t = Math.min((now - startTime) / duration, 1);
+      const ease = 1 - Math.pow(1 - t, 4);
+      currentRotation = startRot + totalAngle * ease;
+      drawWheel(currentRotation);
+
+      const slice2 = (2 * Math.PI) / options.length;
+      const lastTicks = Math.floor((lastTickAngle - startRot) / slice2);
+      const nowTicks = Math.floor((currentRotation - startRot) / slice2);
+      if (nowTicks > lastTicks) playTick(1 - ease);
+      lastTickAngle = currentRotation;
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        currentRotation = finalRot;
+        drawWheel(currentRotation);
+        isSpinning = false;
+        btn.disabled = false; btn.textContent = "Spin";
+        resultEl.innerHTML = `🎉 <span style="color:#fde68a">${options[winIndex]}</span>`;
+        resultEl.classList.remove("show"); void resultEl.offsetWidth; resultEl.classList.add("show");
+        playWin();
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+
+  renderInputs();
+  drawWheel(currentRotation);
+  updateQtyCounter();
+</script>
+<div class="limit-bubble" id="limitBubble">⚠️ Limit cross of 500 qty</div>
+</body>
+</html>
